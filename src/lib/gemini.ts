@@ -419,6 +419,7 @@ export async function analyzeBias(
         temperature: 0.1,
         topP: 0.95,
         maxOutputTokens: 4096,
+        responseMimeType: 'application/json',
       },
     });
 
