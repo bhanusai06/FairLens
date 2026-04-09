@@ -4,7 +4,8 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/ge
 
 type AnalysisMode = 'gemini' | 'heuristic';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || '').trim();
+const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 const GEMINI_MODEL = process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash';
 
 export interface BiasAnalysisResult {
@@ -396,7 +397,7 @@ function buildFallbackAnalysis(csvData: string, datasetType: string): BiasAnalys
 }
 
 export function isGeminiConfigured(): boolean {
-  return Boolean(process.env.GEMINI_API_KEY);
+  return GEMINI_API_KEY.length > 0;
 }
 
 function createGeminiModel() {
