@@ -1,5 +1,6 @@
 import Papa from 'papaparse';
 import JSON5 from 'json5';
+import { createHash } from 'crypto';
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 
 type AnalysisMode = 'gemini' | 'heuristic';
@@ -78,6 +79,10 @@ export interface DatasetStats {
 
 export function getGeminiModelName(): string {
   return GEMINI_MODEL;
+}
+
+export function getGeminiKeyFingerprint(): string {
+  return createHash('sha256').update(GEMINI_API_KEY).digest('hex').slice(0, 12);
 }
 
 const BIAS_ANALYSIS_PROMPT = (csvData: string, datasetType: string) => `
