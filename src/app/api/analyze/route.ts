@@ -14,6 +14,35 @@ function countNonEmptyLines(text: string): number {
   return text.split('\n').filter((line) => line.trim().length > 0).length;
 }
 
+export async function GET() {
+  return NextResponse.json(
+    {
+      status: 'ok',
+      service: 'fairlens-api',
+      route: '/api/analyze',
+      method: 'POST',
+      message: 'Send a POST request with csvData, datasetType, and datasetName to analyze a dataset.',
+    },
+    {
+      status: 200,
+      headers: {
+        'Cache-Control': 'no-store',
+        'X-Content-Type-Options': 'nosniff',
+        Allow: 'GET, POST, OPTIONS',
+      },
+    }
+  );
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      Allow: 'GET, POST, OPTIONS',
+    },
+  });
+}
+
 export async function POST(req: NextRequest) {
   try {
     // Rate limiting
