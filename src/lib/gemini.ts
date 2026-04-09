@@ -406,67 +406,72 @@ export async function analyzeBias(
     return buildFallbackAnalysis(csvData, datasetType);
   }
 
-  const model = genAI.getGenerativeModel({
-    model: GEMINI_MODEL,
-    safetySettings: [
-      {
-        category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-        threshold: HarmBlockThreshold.BLOCK_NONE,
-      },
-    ],
-    generationConfig: {
-      temperature: 0.1,
-      topP: 0.95,
-      maxOutputTokens: 4096,
-    },
-  });
-
-  const prompt = BIAS_ANALYSIS_PROMPT(csvData, datasetType);
-
-  const result = await model.generateContent(prompt);
-  const response = result.response;
-  const text = response.text();
-
-  // Strip any markdown fences
-  const cleaned = text
-    .replace(/```json\n?/g, '')
-    .replace(/```\n?/g, '')
-    .trim();
-
-  let parsed: BiasAnalysisResult;
   try {
-    parsed = JSON.parse(cleaned);
-  } catch {
-    // Attempt to extract JSON from the response
-    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('Gemini returned invalid JSON');
-    parsed = JSON.parse(jsonMatch[0]);
-  }
+    const model = genAI.getGenerativeModel({
+      model: GEMINI_MODEL,
+      safetySettings: [
+        {
+          category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+          threshold: HarmBlockThreshold.BLOCK_NONE,
+        },
+      ],
+      generationConfig: {
+        temperature: 0.1,
+        topP: 0.95,
+        maxOutputTokens: 4096,
+      },
+    });
 
-  // Validate required fields with fallbacks
-  return {
-    analysis_mode: 'gemini',
-    bias_score: parsed.bias_score ?? 50,
-    severity: parsed.severity ?? 'medium',
-    confidence: parsed.confidence ?? 80,
-    affected_attributes: parsed.affected_attributes ?? [],
-    flagged_decisions: (parsed.flagged_decisions ?? []).slice(0, 10),
-    explanation: parsed.explanation ?? 'Analysis complete.',
-    root_cause: parsed.root_cause ?? 'Root cause analysis unavailable.',
-    mitigation_steps: parsed.mitigation_steps ?? [],
-    fairness_metrics: parsed.fairness_metrics ?? {
-      demographic_parity: 50,
-      equal_opportunity: 50,
-      predictive_parity: 50,
-      individual_fairness: 50,
-    },
-    dataset_stats: parsed.dataset_stats ?? {
-      total_records: 0,
-      biased_decisions: 0,
-      bias_percentage: 0,
-      primary_attribute: 'unknown',
-    },
-  };
+    const prompt = BIAS_ANALYSIS_PROMPT(csvData, datasetType);
+
+    const result = await model.generateContent(prompt);
+    const response = result.response;
+    const text = response.text();
+
+    // Strip any markdown fences
+    const cleaned = text
+      .replace(/```json\n?/g, '')
+      .replace(/```\n?/g, '')
+      .trim();
+
+    let parsed: BiasAnalysisResult;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch {
+      // Attempt to extract JSON from the response
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error('Gemini returned invalid JSON');
+      parsed = JSON.parse(jsonMatch[0]);
+    }
+
+    // Validate required fields with fallbacks
+    return {
+      analysis_mode: 'gemini',
+      bias_score: parsed.bias_score ?? 50,
+      severity: parsed.severity ?? 'medium',
+      confidence: parsed.confidence ?? 80,
+      affected_attributes: parsed.affected_attributes ?? [],
+      flagged_decisions: (parsed.flagged_decisions ?? []).slice(0, 10),
+      explanation: parsed.explanation ?? 'Analysis complete.',
+      root_cause: parsed.root_cause ?? 'Root cause analysis unavailable.',
+      mitigation_steps: parsed.mitigation_steps ?? [],
+      fairness_metrics: parsed.fairness_metrics ?? {
+        demographic_parity: 50,
+        equal_opportunity: 50,
+        predictive_parity: 50,
+        individual_fairness: 50,
+      },
+      dataset_stats: parsed.dataset_stats ?? {
+        total_records: 0,
+        biased_decisions: 0,
+        bias_percentage: 0,
+        primary_attribute: 'unknown',
+      },
+    };
+  } catch (error) {
+    console.warn('[gemini] Falling back to heuristic analysis:', error);
+    return buildFallbackAnalysis(csvData, datasetType);
+  }
 }
 
 export function getSeverityColor(score: number): string {
