@@ -399,6 +399,41 @@ export function isGeminiConfigured(): boolean {
   return Boolean(process.env.GEMINI_API_KEY);
 }
 
+function createGeminiModel() {
+  return genAI.getGenerativeModel({
+    model: GEMINI_MODEL,
+    safetySettings: [
+      {
+        category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+        threshold: HarmBlockThreshold.BLOCK_NONE,
+      },
+    ],
+    generationConfig: {
+      temperature: 0.1,
+      topP: 0.95,
+      maxOutputTokens: 4096,
+      responseMimeType: 'application/json',
+    },
+  });
+}
+
+export async function probeGeminiConnection(): Promise<{ ok: boolean; error?: string }> {
+  if (!isGeminiConfigured()) {
+    return { ok: false, error: 'GEMINI_API_KEY missing' };
+  }
+
+  try {
+    const model = createGeminiModel();
+    await model.generateContent('Return valid JSON only: {"ok": true}');
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : 'Unknown Gemini error',
+    };
+  }
+}
+
 export async function analyzeBias(
   csvData: string,
   datasetType: string = 'decision-making'
@@ -408,21 +443,7 @@ export async function analyzeBias(
   }
 
   try {
-    const model = genAI.getGenerativeModel({
-      model: GEMINI_MODEL,
-      safetySettings: [
-        {
-          category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-          threshold: HarmBlockThreshold.BLOCK_NONE,
-        },
-      ],
-      generationConfig: {
-        temperature: 0.1,
-        topP: 0.95,
-        maxOutputTokens: 4096,
-        responseMimeType: 'application/json',
-      },
-    });
+    const model = createGeminiModel();
 
     const prompt = BIAS_ANALYSIS_PROMPT(csvData, datasetType);
 
