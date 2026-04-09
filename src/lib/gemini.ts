@@ -8,6 +8,7 @@ const GEMINI_MODEL = process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash';
 
 export interface BiasAnalysisResult {
   analysis_mode?: AnalysisMode;
+  fallback_reason?: string;
   bias_score: number; // 0-100, higher = more biased
   severity: 'low' | 'medium' | 'high' | 'critical';
   affected_attributes: AttributeBias[];
@@ -471,7 +472,12 @@ export async function analyzeBias(
     };
   } catch (error) {
     console.warn('[gemini] Falling back to heuristic analysis:', error);
-    return buildFallbackAnalysis(csvData, datasetType);
+    const fallback = buildFallbackAnalysis(csvData, datasetType);
+    const message = error instanceof Error ? error.message : 'unknown Gemini error';
+    return {
+      ...fallback,
+      fallback_reason: message,
+    };
   }
 }
 
