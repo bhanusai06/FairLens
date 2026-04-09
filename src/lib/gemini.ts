@@ -423,6 +423,20 @@ function createGeminiModel() {
   });
 }
 
+async function coerceGeminiJson(model: ReturnType<typeof createGeminiModel>, raw: string): Promise<BiasAnalysisResult> {
+  const repairPrompt = `You are a strict JSON formatter.\nConvert the following content into valid JSON only, with no markdown fences and no extra text.\n\n${raw.slice(0, 12000)}`;
+  const repaired = await model.generateContent(repairPrompt);
+  const repairedText = repaired.response
+    .text()
+    .replace(/```json\n?/g, '')
+    .replace(/```\n?/g, '')
+    .trim();
+
+  const repairedMatch = repairedText.match(/\{[\s\S]*\}/);
+  const candidate = repairedMatch ? repairedMatch[0] : repairedText;
+  return JSON5.parse(candidate) as BiasAnalysisResult;
+}
+
 export async function probeGeminiConnection(): Promise<{ ok: boolean; error?: string }> {
   if (!isGeminiConfigured()) {
     return { ok: false, error: 'GEMINI_API_KEY missing' };
@@ -469,12 +483,18 @@ export async function analyzeBias(
     } catch {
       // Attempt to extract JSON from the response, then parse leniently.
       const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error('Gemini returned invalid JSON');
-
-      try {
-        parsed = JSON.parse(jsonMatch[0]);
-      } catch {
-        parsed = JSON5.parse(jsonMatch[0]) as BiasAnalysisResult;
+      if (!jsonMatch) {
+        parsed = await coerceGeminiJson(model, cleaned);
+      } else {
+        try {
+          parsed = JSON.parse(jsonMatch[0]);
+        } catch {
+          try {
+            parsed = JSON5.parse(jsonMatch[0]) as BiasAnalysisResult;
+          } catch {
+            parsed = await coerceGeminiJson(model, jsonMatch[0]);
+          }
+        }
       }
     }
 
