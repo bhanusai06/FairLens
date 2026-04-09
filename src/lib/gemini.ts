@@ -1,4 +1,5 @@
 import Papa from 'papaparse';
+import JSON5 from 'json5';
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 
 type AnalysisMode = 'gemini' | 'heuristic';
@@ -8,7 +9,6 @@ const GEMINI_MODEL = process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash';
 
 export interface BiasAnalysisResult {
   analysis_mode?: AnalysisMode;
-  fallback_reason?: string;
   bias_score: number; // 0-100, higher = more biased
   severity: 'low' | 'medium' | 'high' | 'critical';
   affected_attributes: AttributeBias[];
@@ -440,10 +440,15 @@ export async function analyzeBias(
     try {
       parsed = JSON.parse(cleaned);
     } catch {
-      // Attempt to extract JSON from the response
+      // Attempt to extract JSON from the response, then parse leniently.
       const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
       if (!jsonMatch) throw new Error('Gemini returned invalid JSON');
-      parsed = JSON.parse(jsonMatch[0]);
+
+      try {
+        parsed = JSON.parse(jsonMatch[0]);
+      } catch {
+        parsed = JSON5.parse(jsonMatch[0]) as BiasAnalysisResult;
+      }
     }
 
     // Validate required fields with fallbacks
@@ -472,12 +477,7 @@ export async function analyzeBias(
     };
   } catch (error) {
     console.warn('[gemini] Falling back to heuristic analysis:', error);
-    const fallback = buildFallbackAnalysis(csvData, datasetType);
-    const message = error instanceof Error ? error.message : 'unknown Gemini error';
-    return {
-      ...fallback,
-      fallback_reason: message,
-    };
+    return buildFallbackAnalysis(csvData, datasetType);
   }
 }
 
