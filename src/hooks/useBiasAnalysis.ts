@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { BiasAnalysisResult } from '@/lib/gemini';
+import { getApiUrl } from '@/lib/api';
 import toast from 'react-hot-toast';
 
 interface AnalysisState {
@@ -48,7 +49,7 @@ export function useBiasAnalysis() {
     }, 900);
 
     try {
-      const res = await fetch('/api/analyze', {
+      const res = await fetch(getApiUrl('/api/analyze'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ csvData, datasetType, datasetName }),

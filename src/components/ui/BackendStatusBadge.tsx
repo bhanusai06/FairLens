@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
+import { getApiUrl } from '@/lib/api';
 
 type HealthResponse = {
   status?: string;
@@ -46,7 +47,7 @@ export function BackendStatusBadge() {
   useEffect(() => {
     const controller = new AbortController();
 
-    fetch('/api/health', { signal: controller.signal })
+    fetch(getApiUrl('/api/health'), { signal: controller.signal })
       .then((response) => response.json())
       .then((data) => setHealth(data as HealthResponse))
       .catch(() => setHealth(null));

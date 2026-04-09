@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { DEMO_DATASETS, DatasetId } from '@/data/datasets';
 import { cn } from '@/lib/utils';
+import { getApiUrl } from '@/lib/api';
 import { TiltCard } from '@/components/ui/TiltCard';
 import { BackendStatusBadge } from '@/components/ui/BackendStatusBadge';
 import { Suspense } from 'react';
@@ -165,7 +166,7 @@ function UploadContent() {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 45000);
 
-      const response = await fetch('/api/analyze', {
+      const response = await fetch(getApiUrl('/api/analyze'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
