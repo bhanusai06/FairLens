@@ -38,6 +38,18 @@ function formatApiError(payload: unknown, fallback = 'Analysis failed'): string 
   return fallback;
 }
 
+function isCsvInputError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes('csv') ||
+    normalized.includes('header') ||
+    normalized.includes('row') ||
+    normalized.includes('column') ||
+    normalized.includes('dataset too small') ||
+    normalized.includes('invalid request')
+  );
+}
+
 function UploadContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -412,9 +424,15 @@ function UploadContent() {
             <div>
               <p className="text-danger text-sm font-semibold font-body">Analysis Failed</p>
               <p className="text-danger/80 text-xs font-body mt-1">{error}</p>
-              <p className="text-text-dim text-xs font-body mt-2">
-                Check CSV headers and ensure there are at least 5 rows and a decision/outcome column.
-              </p>
+              {isCsvInputError(error) ? (
+                <p className="text-text-dim text-xs font-body mt-2">
+                  Check CSV headers and ensure there are at least 5 rows and a decision/outcome column.
+                </p>
+              ) : (
+                <p className="text-text-dim text-xs font-body mt-2">
+                  The dataset looks valid. This is likely a temporary provider-side issue. Retry in a few seconds.
+                </p>
+              )}
             </div>
           </div>
         )}

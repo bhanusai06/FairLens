@@ -7,6 +7,7 @@ type AnalysisMode = 'gemini' | 'heuristic';
 
 const GEMINI_ENV_KEY = 'GEMINI_API_KEY';
 const GEMINI_MODEL = process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash';
+const GEMINI_FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL?.trim() || 'gemini-1.5-flash';
 
 function getGeminiApiKey(): string {
   return (process.env[GEMINI_ENV_KEY] || '').trim();
@@ -422,9 +423,9 @@ function createGeminiClient(): GoogleGenerativeAI {
   return new GoogleGenerativeAI(key);
 }
 
-function createGeminiModel() {
+function createGeminiModel(modelName: string = GEMINI_MODEL) {
   return createGeminiClient().getGenerativeModel({
-    model: GEMINI_MODEL,
+    model: modelName,
     safetySettings: [
       {
         category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
@@ -502,8 +503,19 @@ export async function probeGeminiConnection(): Promise<{ ok: boolean; error?: st
   }
 
   try {
-    const model = createGeminiModel();
-    await generateContentWithRetry(model, 'Return valid JSON only: {"ok": true}', 2);
+    let model = createGeminiModel(GEMINI_MODEL);
+    try {
+      await generateContentWithRetry(model, 'Return valid JSON only: {"ok": true}', 2);
+    } catch (primaryError) {
+      const primaryMessage = primaryError instanceof Error ? primaryError.message : String(primaryError);
+      if (!isTransientGeminiError(primaryMessage) || GEMINI_FALLBACK_MODEL === GEMINI_MODEL) {
+        throw primaryError;
+      }
+
+      model = createGeminiModel(GEMINI_FALLBACK_MODEL);
+      await generateContentWithRetry(model, 'Return valid JSON only: {"ok": true}', 2);
+    }
+
     return { ok: true };
   } catch (error) {
     return {
@@ -522,11 +534,22 @@ export async function analyzeBias(
   }
 
   try {
-    const model = createGeminiModel();
-
     const prompt = BIAS_ANALYSIS_PROMPT(csvData, datasetType);
+    let model = createGeminiModel(GEMINI_MODEL);
+    let result;
 
-    const result = await generateContentWithRetry(model, prompt, 3);
+    try {
+      result = await generateContentWithRetry(model, prompt, 3);
+    } catch (primaryError) {
+      const primaryMessage = primaryError instanceof Error ? primaryError.message : String(primaryError);
+      if (!isTransientGeminiError(primaryMessage) || GEMINI_FALLBACK_MODEL === GEMINI_MODEL) {
+        throw primaryError;
+      }
+
+      model = createGeminiModel(GEMINI_FALLBACK_MODEL);
+      result = await generateContentWithRetry(model, prompt, 2);
+    }
+
     const response = result.response;
     const text = response.text();
 
