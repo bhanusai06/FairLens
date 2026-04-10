@@ -34,10 +34,18 @@ function mapHealthToState(health: HealthResponse | null): BadgeState {
     };
   }
 
+  if (health.analysis_mode === 'heuristic') {
+    return {
+      label: 'Heuristic mode',
+      tone: 'warning',
+      detail: health.gemini === 'missing' ? 'Gemini not configured' : 'Fallback analysis',
+    };
+  }
+
   return {
-    label: 'Local fallback',
+    label: 'Backend status',
     tone: 'warning',
-    detail: health.model ? `${health.model} fallback` : 'Heuristic analysis',
+    detail: health.model ? health.model : 'Unavailable',
   };
 }
 

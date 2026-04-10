@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getGeminiKeyFingerprint, getGeminiModelName, isGeminiConfigured, probeGeminiConnection } from '@/lib/gemini';
+import { runServerStartupChecks } from '@/lib/startupChecks';
+
+runServerStartupChecks();
 
 export async function GET(req: NextRequest) {
   const probeRequested = req.nextUrl.searchParams.get('probe') === '1';

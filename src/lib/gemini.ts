@@ -5,9 +5,12 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/ge
 
 type AnalysisMode = 'gemini' | 'heuristic';
 
-const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || '').trim();
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+const GEMINI_ENV_KEY = 'GEMINI_API_KEY';
 const GEMINI_MODEL = process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash';
+
+function getGeminiApiKey(): string {
+  return (process.env[GEMINI_ENV_KEY] || '').trim();
+}
 
 export interface BiasAnalysisResult {
   analysis_mode?: AnalysisMode;
@@ -82,7 +85,8 @@ export function getGeminiModelName(): string {
 }
 
 export function getGeminiKeyFingerprint(): string {
-  return createHash('sha256').update(GEMINI_API_KEY).digest('hex').slice(0, 12);
+  const key = getGeminiApiKey();
+  return createHash('sha256').update(key).digest('hex').slice(0, 12);
 }
 
 const BIAS_ANALYSIS_PROMPT = (csvData: string, datasetType: string) => `
@@ -402,11 +406,24 @@ function buildFallbackAnalysis(csvData: string, datasetType: string): BiasAnalys
 }
 
 export function isGeminiConfigured(): boolean {
-  return GEMINI_API_KEY.length > 0;
+  return getGeminiApiKey().length > 0;
+}
+
+export function getMissingGeminiKeyMessage(): string {
+  return `${GEMINI_ENV_KEY} is missing. Set ${GEMINI_ENV_KEY} in the server deployment environment and redeploy.`;
+}
+
+function createGeminiClient(): GoogleGenerativeAI {
+  const key = getGeminiApiKey();
+  if (!key) {
+    throw new Error(getMissingGeminiKeyMessage());
+  }
+
+  return new GoogleGenerativeAI(key);
 }
 
 function createGeminiModel() {
-  return genAI.getGenerativeModel({
+  return createGeminiClient().getGenerativeModel({
     model: GEMINI_MODEL,
     safetySettings: [
       {
@@ -459,7 +476,7 @@ export async function analyzeBias(
   datasetType: string = 'decision-making'
 ): Promise<BiasAnalysisResult> {
   if (!isGeminiConfigured()) {
-    return buildFallbackAnalysis(csvData, datasetType);
+    throw new Error(getMissingGeminiKeyMessage());
   }
 
   try {
@@ -523,8 +540,8 @@ export async function analyzeBias(
       },
     };
   } catch (error) {
-    console.warn('[gemini] Falling back to heuristic analysis:', error);
-    return buildFallbackAnalysis(csvData, datasetType);
+    const message = error instanceof Error ? error.message : 'Unknown Gemini error';
+    throw new Error(`Gemini analysis failed (${GEMINI_MODEL}): ${message}`);
   }
 }
 

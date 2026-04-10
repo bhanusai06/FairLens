@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { analyzeBias, getGeminiModelName } from '@/lib/gemini';
+import { analyzeBias, getGeminiModelName, getMissingGeminiKeyMessage, isGeminiConfigured } from '@/lib/gemini';
 import { sanitizeCSV, detectDatasetType } from '@/lib/utils';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
+import { runServerStartupChecks } from '@/lib/startupChecks';
 import { z } from 'zod';
+
+runServerStartupChecks();
 
 const BodySchema = z.object({
   csvData: z.string().min(10).max(60000),
@@ -51,6 +54,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: 'Too many requests. Please wait before analyzing again.' },
         { status: 429 }
+      );
+    }
+
+    if (!isGeminiConfigured()) {
+      return NextResponse.json(
+        {
+          error: `Server configuration error: ${getMissingGeminiKeyMessage()}`,
+          code: 'MISSING_GEMINI_API_KEY',
+        },
+        { status: 503 }
       );
     }
 
@@ -139,6 +152,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: 'Gemini API quota exceeded. Please try again later or check your API key.' },
         { status: 429 }
+      );
+    }
+
+    if (message.includes('missing') && message.includes('GEMINI_API_KEY')) {
+      return NextResponse.json(
+        {
+          error: `Server configuration error: ${getMissingGeminiKeyMessage()}`,
+          code: 'MISSING_GEMINI_API_KEY',
+        },
+        { status: 503 }
       );
     }
 

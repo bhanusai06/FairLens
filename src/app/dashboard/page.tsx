@@ -119,7 +119,16 @@ export default function DashboardPage() {
   const reportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const stored = sessionStorage.getItem('fairlens_result');
+    const searchParams = new URLSearchParams(window.location.search);
+    const currentRunId = searchParams.get('run');
+
+    if (!currentRunId) {
+      router.push('/upload');
+      return;
+    }
+
+    const stored = sessionStorage.getItem(`fairlens_result:${currentRunId}`);
+
     if (!stored) {
       router.push('/upload');
       return;
@@ -292,10 +301,10 @@ Powered by Gemini 1.5 Pro
 
         {(result.metadata?.analysis_mode === 'heuristic' || result.analysis_mode === 'heuristic') && (
           <div className="mb-6 rounded-2xl border border-warning/20 bg-warning/10 p-4 soft-border">
-            <p className="text-warning text-sm font-semibold font-body">Local backend mode active</p>
+            <p className="text-warning text-sm font-semibold font-body">Heuristic analysis mode active</p>
             <p className="text-text-dim text-sm font-body mt-1 leading-relaxed">
-              Gemini is not configured in this environment, so the API is returning a deterministic heuristic audit.
-              The backend is still working and the dashboard remains usable locally.
+              This result was generated with the deterministic heuristic audit instead of Gemini.
+              The backend is still working and the dashboard remains usable.
             </p>
           </div>
         )}

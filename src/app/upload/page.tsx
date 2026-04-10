@@ -191,20 +191,22 @@ function UploadContent() {
       }
 
       const result = await response.json();
+      const analysisRunId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
       setProgress(100);
       setProgressLabel('Analysis complete!');
 
       // Store result and navigate
-      sessionStorage.setItem('fairlens_result', JSON.stringify({
+      sessionStorage.setItem(`fairlens_result:${analysisRunId}`, JSON.stringify({
         ...result,
         datasetName,
         datasetType,
         demo_id: selectedDemo,
+        analysisRunId,
       }));
 
       setTimeout(() => {
-        router.push('/dashboard');
+        router.push(`/dashboard?run=${encodeURIComponent(analysisRunId)}`);
       }, 600);
     } catch (err: unknown) {
       clearInterval(progressInterval);
