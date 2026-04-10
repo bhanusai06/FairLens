@@ -462,6 +462,16 @@ function isGeminiModelNotFoundError(message: string): boolean {
   return normalized.includes('404') && normalized.includes('model') && normalized.includes('not found');
 }
 
+function isGeminiQuotaError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes('quota') ||
+    normalized.includes('429') ||
+    normalized.includes('rate limit') ||
+    normalized.includes('resource has been exhausted')
+  );
+}
+
 async function generateContentWithRetry(
   model: ReturnType<typeof createGeminiModel>,
   prompt: string,
@@ -619,7 +629,7 @@ export async function analyzeBias(
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown Gemini error';
-    if (isTransientGeminiError(message) || isGeminiModelNotFoundError(message)) {
+    if (isTransientGeminiError(message) || isGeminiModelNotFoundError(message) || isGeminiQuotaError(message)) {
       return buildFallbackAnalysis(csvData, datasetType);
     }
     throw new Error(`Gemini analysis failed (${GEMINI_MODEL}): ${message}`);
