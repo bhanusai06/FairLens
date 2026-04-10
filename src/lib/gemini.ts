@@ -440,6 +440,48 @@ function createGeminiModel() {
   });
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isTransientGeminiError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes('503') ||
+    normalized.includes('service unavailable') ||
+    normalized.includes('high demand') ||
+    normalized.includes('temporarily unavailable') ||
+    normalized.includes('deadline exceeded') ||
+    normalized.includes('resource exhausted')
+  );
+}
+
+async function generateContentWithRetry(
+  model: ReturnType<typeof createGeminiModel>,
+  prompt: string,
+  attempts: number = 3
+) {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await model.generateContent(prompt);
+    } catch (error) {
+      lastError = error;
+      const message = error instanceof Error ? error.message : String(error);
+      const canRetry = isTransientGeminiError(message) && attempt < attempts;
+      if (!canRetry) {
+        throw error;
+      }
+
+      // Exponential backoff for temporary provider-side congestion.
+      await sleep(500 * Math.pow(2, attempt - 1));
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('Unknown Gemini error');
+}
+
 async function coerceGeminiJson(model: ReturnType<typeof createGeminiModel>, raw: string): Promise<BiasAnalysisResult> {
   const repairPrompt = `You are a strict JSON formatter.\nConvert the following content into valid JSON only, with no markdown fences and no extra text.\n\n${raw.slice(0, 12000)}`;
   const repaired = await model.generateContent(repairPrompt);
@@ -461,7 +503,7 @@ export async function probeGeminiConnection(): Promise<{ ok: boolean; error?: st
 
   try {
     const model = createGeminiModel();
-    await model.generateContent('Return valid JSON only: {"ok": true}');
+    await generateContentWithRetry(model, 'Return valid JSON only: {"ok": true}', 2);
     return { ok: true };
   } catch (error) {
     return {
@@ -484,7 +526,7 @@ export async function analyzeBias(
 
     const prompt = BIAS_ANALYSIS_PROMPT(csvData, datasetType);
 
-    const result = await model.generateContent(prompt);
+    const result = await generateContentWithRetry(model, prompt, 3);
     const response = result.response;
     const text = response.text();
 

@@ -155,6 +155,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (
+      message.includes('503') ||
+      message.toLowerCase().includes('service unavailable') ||
+      message.toLowerCase().includes('high demand')
+    ) {
+      return NextResponse.json(
+        {
+          error: 'Gemini is temporarily experiencing high demand. Please retry in a few seconds.',
+          code: 'GEMINI_TEMPORARILY_UNAVAILABLE',
+        },
+        { status: 503 }
+      );
+    }
+
     if (message.includes('missing') && message.includes('GEMINI_API_KEY')) {
       return NextResponse.json(
         {
