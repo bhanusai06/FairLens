@@ -7,7 +7,7 @@ type AnalysisMode = 'gemini' | 'heuristic';
 
 const GEMINI_ENV_KEY = 'GEMINI_API_KEY';
 const GEMINI_MODEL = process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash';
-const GEMINI_FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL?.trim() || 'gemini-1.5-flash';
+const GEMINI_FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL?.trim() || '';
 
 function getGeminiApiKey(): string {
   return (process.env[GEMINI_ENV_KEY] || '').trim();
@@ -457,6 +457,11 @@ function isTransientGeminiError(message: string): boolean {
   );
 }
 
+function isGeminiModelNotFoundError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return normalized.includes('404') && normalized.includes('model') && normalized.includes('not found');
+}
+
 async function generateContentWithRetry(
   model: ReturnType<typeof createGeminiModel>,
   prompt: string,
@@ -508,7 +513,11 @@ export async function probeGeminiConnection(): Promise<{ ok: boolean; error?: st
       await generateContentWithRetry(model, 'Return valid JSON only: {"ok": true}', 2);
     } catch (primaryError) {
       const primaryMessage = primaryError instanceof Error ? primaryError.message : String(primaryError);
-      if (!isTransientGeminiError(primaryMessage) || GEMINI_FALLBACK_MODEL === GEMINI_MODEL) {
+      if (
+        !isTransientGeminiError(primaryMessage) ||
+        !GEMINI_FALLBACK_MODEL ||
+        GEMINI_FALLBACK_MODEL === GEMINI_MODEL
+      ) {
         throw primaryError;
       }
 
@@ -542,7 +551,11 @@ export async function analyzeBias(
       result = await generateContentWithRetry(model, prompt, 3);
     } catch (primaryError) {
       const primaryMessage = primaryError instanceof Error ? primaryError.message : String(primaryError);
-      if (!isTransientGeminiError(primaryMessage) || GEMINI_FALLBACK_MODEL === GEMINI_MODEL) {
+      if (
+        !isTransientGeminiError(primaryMessage) ||
+        !GEMINI_FALLBACK_MODEL ||
+        GEMINI_FALLBACK_MODEL === GEMINI_MODEL
+      ) {
         throw primaryError;
       }
 
@@ -606,6 +619,9 @@ export async function analyzeBias(
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown Gemini error';
+    if (isTransientGeminiError(message) || isGeminiModelNotFoundError(message)) {
+      return buildFallbackAnalysis(csvData, datasetType);
+    }
     throw new Error(`Gemini analysis failed (${GEMINI_MODEL}): ${message}`);
   }
 }
